@@ -23,6 +23,8 @@ typedef struct {
     int hidden_size;
     int output_size;
     float *w1, *w2, *b1, *b2;
+    int epochs;
+    float learning_rate;
 } NeuralNetwork;
 
 Word vocabulary[MAX_WORDS];
@@ -53,7 +55,7 @@ void add_word(const char *word) {
     }
 }
 
-NeuralNetwork* create_nn(int input_size, int hidden_size, int output_size) {
+NeuralNetwork* create_nn(int input_size, int hidden_size, int output_size, int epochs, float learning_rate) {
     NeuralNetwork *nn = (NeuralNetwork *)malloc(sizeof(NeuralNetwork));
     if (!nn) {
         fprintf(stderr, "Memory allocation failed\n");
@@ -62,6 +64,8 @@ NeuralNetwork* create_nn(int input_size, int hidden_size, int output_size) {
     nn->input_size = input_size;
     nn->hidden_size = hidden_size;
     nn->output_size = output_size;
+    nn->epochs = (epochs > 0) ? epochs : EPOCHS;  // Use default if not provided
+    nn->learning_rate = (learning_rate > 0) ? learning_rate : LEARNING_RATE;  // Use default if not provided
     
     nn->w1 = create_embedding(input_size * hidden_size);
     nn->w2 = create_embedding(hidden_size * output_size);
@@ -100,17 +104,17 @@ void train(NeuralNetwork *nn, float *input, float target) {
     float d_output = error * output[0] * (1 - output[0]);
     
     for (int j = 0; j < nn->hidden_size; j++) {
-        nn->w2[j] += LEARNING_RATE * d_output * hidden[j];
+        nn->w2[j] += nn->learning_rate * d_output * hidden[j];
         d_hidden[j] = nn->w2[j] * d_output;
     }
-    nn->b2[0] += LEARNING_RATE * d_output;
+    nn->b2[0] += nn->learning_rate * d_output;
     
     for (int i = 0; i < nn->hidden_size; i++) {
         float d_h = d_hidden[i] * hidden[i] * (1 - hidden[i]);
         for (int j = 0; j < nn->input_size; j++) {
-            nn->w1[i * nn->input_size + j] += LEARNING_RATE * d_h * input[j];
+            nn->w1[i * nn->input_size + j] += nn->learning_rate * d_h * input[j];
         }
-        nn->b1[i] += LEARNING_RATE * d_h;
+        nn->b1[i] += nn->learning_rate * d_h;
     }
 }
 
@@ -152,7 +156,7 @@ float* text_to_input(const char *text) {
 }
 
 void train_nn(NeuralNetwork *nn, const char *positive_samples[], const char *negative_samples[], int num_samples) {
-    for (int epoch = 0; epoch < EPOCHS; epoch++) {
+    for (int epoch = 0; epoch < nn->epochs; epoch++) {
         float total_error = 0;
         for (int i = 0; i < num_samples; i++) {
             float *pos_input = text_to_input(positive_samples[i]);
@@ -173,8 +177,8 @@ void train_nn(NeuralNetwork *nn, const char *positive_samples[], const char *neg
             free(neg_input);
         }
         
-        if (epoch % PRINT_INTERVAL == 0 || epoch == EPOCHS - 1) {
-            printf("Epoch %d, Average Error: %f\n", epoch, total_error / (2 * num_samples));
+        if (epoch % PRINT_INTERVAL == 0 || epoch == nn->epochs - 1) {
+            printf("\033[1;37mEpoch %d, Average Error: %f\033[0m\n", epoch, total_error / (2 * num_samples));
         }
     }
 }
@@ -200,7 +204,7 @@ float predict(NeuralNetwork *nn, const char *text) {
     return output[0];
 }
 
-void add_word_array(const char *words[], int count) {
+void add_words(const char *words[], int count) {
     for (int i = 0; i < count; i++) {
         add_word(words[i]);
     }
@@ -220,10 +224,12 @@ void save_nn(NeuralNetwork *nn, const char *filename) {
         fwrite(vocabulary[i].embedding, sizeof(float), HIDDEN_SIZE, file);
     }
 
-    // Write network structure
+    // Write network structure and hyperparameters
     fwrite(&nn->input_size, sizeof(int), 1, file);
     fwrite(&nn->hidden_size, sizeof(int), 1, file);
     fwrite(&nn->output_size, sizeof(int), 1, file);
+    fwrite(&nn->epochs, sizeof(int), 1, file);
+    fwrite(&nn->learning_rate, sizeof(float), 1, file);
 
     // Write weights and biases
     fwrite(nn->w1, sizeof(float), nn->input_size * nn->hidden_size, file);
@@ -256,10 +262,12 @@ NeuralNetwork* load_nn(const char *filename) {
         return NULL;
     }
 
-    // Read network structure
+    // Read network structure and hyperparameters
     fread(&nn->input_size, sizeof(int), 1, file);
     fread(&nn->hidden_size, sizeof(int), 1, file);
     fread(&nn->output_size, sizeof(int), 1, file);
+    fread(&nn->epochs, sizeof(int), 1, file);
+    fread(&nn->learning_rate, sizeof(float), 1, file);
 
     // Allocate memory for weights and biases
     nn->w1 = (float *)malloc(nn->input_size * nn->hidden_size * sizeof(float));
@@ -286,6 +294,17 @@ NeuralNetwork* load_nn(const char *filename) {
 
     fclose(file);
     return nn;
+}
+
+void print_results(NeuralNetwork *nn, const char *test_samples[], int num_samples) {
+    printf("\033[1;36m\nResults:\033[0m\n\n");
+    for (int i = 0; i < num_samples; i++) {
+        float sentiment = predict(nn, test_samples[i]);
+        printf("\033[1;37mSample %i:\033[0m \033[32m%.2f (%s)\033[0m\n", 
+            i, 
+            sentiment, 
+            sentiment > 0.5 ? "Positive" : "Negative");
+    }
 }
 
 #endif

@@ -1,17 +1,33 @@
 #include "nf.h"
 
-int main() {
-    // Expanded vocabulary
+int main(int argc, char* argv[]) {
+    int epochs = 1000;
+    float learning_rate = 0.1;
+
+    if (argc > 1) {
+        epochs = atoi(argv[1]);
+        if (epochs < 1) {
+            printf("Invalid number of epochs\n");
+            return 1;
+        }
+    }
+    if (argc > 2) {
+        learning_rate = atof(argv[2]);
+        if (learning_rate <= 0) {
+            printf("Invalid learning rate\n");
+            return 1;
+        }
+    }
+
     const char *words[] = {
         "good", "excellent", "amazing", "wonderful", "great", "exciting",
         "interesting", "happy", "enjoyable", "bad", "terrible", "awful",
         "poor", "boring", "sad", "waste", "uninteresting"
     };
-    add_word_array(words, sizeof(words) / sizeof(words[0]));
+    add_words(words, sizeof(words) / sizeof(words[0]));
 
-    NeuralNetwork *nn = create_nn(HIDDEN_SIZE, HIDDEN_SIZE, 1);
+    NeuralNetwork *nn = create_nn(HIDDEN_SIZE, HIDDEN_SIZE, 1, epochs, learning_rate);
     
-    // Expanded training data
     const char *positive_samples[] = {
         "good movie", "excellent performance", "amazing experience",
         "wonderful story", "great acting", "exciting plot",
@@ -26,7 +42,7 @@ int main() {
         "disgusting movie", "terrible experience", "awful film",
         "poor quality", "boring film", "humiliating film", "waste of money"
     };
-    int num_samples = 16;
+    int num_samples = sizeof(positive_samples) / sizeof(positive_samples[0]);
     
     // Training loop
     train_nn(nn, positive_samples, negative_samples, num_samples);
@@ -35,14 +51,12 @@ int main() {
     const char *test_samples[] = {
         "good movie", "bad acting", "excellent story", "terrible ending",
         "amazing performance", "disappointing film", "exciting and interesting",
-        "boring and awful", "wonderful experience", "poor quality"
+        "boring and awful", "wonderful experience", "poor quality", "Mr. Goodman is a bad person",
+        "I love you", "The Badlands is an amazing place", "You look weird"
     };
-    int num_test_samples = 10;
+    int num_test_samples = sizeof(test_samples) / sizeof(test_samples[0]);
     
-    for (int i = 0; i < num_test_samples; i++) {
-        float sentiment = predict(nn, test_samples[i]);
-        printf("Sentiment for '%s': %.2f (%s)\n", test_samples[i], sentiment, sentiment > 0.5 ? "Positive" : "Negative");
-    }
+    print_results(nn, test_samples, num_test_samples);
 
     save_nn(nn, "nn.bin");
     
