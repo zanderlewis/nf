@@ -1,0 +1,10 @@
+# Cache files
+*.bin
+*.dSYM/
+.DS_Store
+
+# Test files
+nft
+
+# Build files
+nf
