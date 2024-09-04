@@ -8,3 +8,7 @@ nft
 
 # Build files
 nf
+
+# IDE files
+.idea/
+.vscode/
